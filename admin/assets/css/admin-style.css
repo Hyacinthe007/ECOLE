@@ -1,0 +1,279 @@
+/* ===== STYLES GLOBAUX ADMIN - ÉCOLE MANDROSO ===== */
+
+/* ===== RESET SÉLECTION ===== */
+.sidebar,
+.sidebar * {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+}
+
+/* ===== SIDEBAR BASE ===== */
+.sidebar {
+    transition: transform 0.3s ease, width 0.3s ease;
+    will-change: transform, width;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* ===== ITEMS DU MENU ===== */
+.menu-item {
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+}
+
+.menu-item:active {
+    transform: scale(0.98);
+}
+
+/* ===== TOOLTIP (caché par défaut) ===== */
+.menu-item .tooltip {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%) translateX(10px);
+    background: #1f2937;
+    color: white;
+    padding: 8px 14px;
+    border-radius: 8px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: all 0.2s ease;
+    z-index: 9999;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    margin-left: 8px;
+}
+
+/* Flèche du tooltip */
+.tooltip::before {
+    content: '';
+    position: absolute;
+    left: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-right: 6px solid #1f2937;
+    border-top: 6px solid transparent;
+    border-bottom: 6px solid transparent;
+}
+
+/* ===== OVERLAY MOBILE ===== */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 40;
+    top: 64px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay.active {
+    display: block;
+    opacity: 1;
+}
+
+/* ===== CONTENU PRINCIPAL ===== */
+.main-content {
+    transition: margin-left 0.3s ease;
+}
+
+/* ===== RESPONSIVE MOBILE/TABLETTE ===== */
+@media (max-width: 1023px) {
+    /* Sidebar caché par défaut sur mobile */
+    .sidebar {
+        position: fixed !important;
+        left: -100% !important;
+        top: 64px !important;
+        height: calc(100vh - 64px) !important;
+        width: 280px !important;
+        z-index: 50 !important;
+        background: white;
+        box-shadow: 2px 0 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Sidebar ouvert sur mobile */
+    .sidebar.mobile-open {
+        left: 0 !important;
+        transform: translateX(0);
+    }
+    
+    /* Toujours afficher le texte sur mobile */
+    .sidebar .menu-text,
+    .sidebar.collapsed .menu-text,
+    .sidebar.mobile-open .menu-text {
+        opacity: 1 !important;
+        display: inline !important;
+    }
+    
+    /* Cacher les tooltips sur mobile */
+    .menu-item .tooltip {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    
+    /* Contenu principal : pas de marge sur mobile */
+    .main-content {
+        margin-left: 0 !important;
+    }
+}
+
+/* ===== RESPONSIVE DESKTOP ===== */
+@media (min-width: 1024px) {
+    /* Sidebar toujours visible */
+    .sidebar {
+        position: fixed !important;
+        left: 0 !important;
+        top: 64px !important;
+        height: calc(100vh - 64px) !important;
+        width: 256px !important;
+        z-index: 40;
+    }
+    
+    /* Contenu principal avec marge par défaut */
+    .main-content {
+        margin-left: 256px !important;
+    }
+    
+    /* ===== MODE RÉDUIT (COLLAPSED) ===== */
+    .sidebar.collapsed {
+        width: 80px !important;
+    }
+    
+    /* Cacher le texte en mode réduit */
+    .sidebar.collapsed .menu-text,
+    .sidebar.collapsed .logo-text {
+        opacity: 0 !important;
+        display: none !important;
+    }
+    
+    /* Afficher tooltip UNIQUEMENT au survol en mode réduit */
+    .sidebar.collapsed .menu-item:hover .tooltip {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(-50%) translateX(0);
+    }
+    
+    /* Contenu principal en mode sidebar réduit */
+    .sidebar.collapsed ~ * .main-content,
+    body:has(.sidebar.collapsed) .main-content {
+        margin-left: 80px !important;
+    }
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes slideIn {
+    from {
+        transform: translateX(-100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+.sidebar.mobile-open {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.sidebar-overlay.active {
+    animation: fadeIn 0.3s ease;
+}
+
+/* ===== SCROLLBAR PERSONNALISÉE ===== */
+.sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* ===== CARTES STATISTIQUES ===== */
+.stat-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+/* ===== TABLES RESPONSIVE ===== */
+@media (max-width: 768px) {
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .table-responsive table {
+        min-width: 600px;
+    }
+}
+
+/* ===== MODALS ===== */
+.modal {
+    backdrop-filter: blur(4px);
+}
+
+/* ===== AMÉLIORATION ACCESSIBILITÉ ===== */
+.menu-item:focus-visible,
+button:focus-visible,
+a:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
+
+/* ===== UTILITAIRES ===== */
+.truncate-2-lines {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Masquer le scroll mais le garder fonctionnel */
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+/* ===== PRINT STYLES ===== */
+@media print {
+    .sidebar,
+    nav,
+    .no-print {
+        display: none !important;
+    }
+    
+    .main-content {
+        margin-left: 0 !important;
+        padding: 0 !important;
+    }
+}
