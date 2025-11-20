@@ -130,26 +130,19 @@ $activites = $conn->query("SELECT la.*, u.username FROM logs_activite la
                     <span class="tooltip">Élèves</span>
                 </a>
 
-                <!-- Enseignants -->
-                <a href="enseignants.php" class="menu-item flex items-center gap-3 p-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-all duration-200">
-                    <i class="fas fa-chalkboard-teacher w-5 text-center text-gray-600"></i>
-                    <span class="menu-text">Enseignants</span>
-                    <span class="tooltip">Enseignants</span>
-                </a>
-
-                <!-- Classes -->
-                <a href="classes.php" class="menu-item flex items-center gap-3 p-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-all duration-200">
-                    <i class="fas fa-school w-5 text-center text-gray-600"></i>
-                    <span class="menu-text">Classes</span>
-                    <span class="tooltip">Classes</span>
-                </a>
-
                 <!-- Notes -->
                 <a href="notes.php" class="menu-item flex items-center gap-3 p-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-all duration-200">
                     <i class="fas fa-file-alt w-5 text-center text-gray-600"></i>
                     <span class="menu-text">Notes</span>
                     <span class="tooltip">Notes</span>
                 </a>
+
+                <!-- Bulletins -->
+                <a href="bulletins.php" class="menu-item flex items-center gap-3 p-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-all duration-200">
+                    <i class="fas fa-chalkboard w-5 text-center text-gray-600"></i>
+                    <span class="menu-text">Bulletins</span>
+                    <span class="tooltip">Bulletins</span>
+                </a>                
 
                 <!-- Présences -->
                 <a href="presences.php" class="menu-item flex items-center gap-3 p-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-all duration-200">

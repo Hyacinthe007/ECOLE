@@ -1,7 +1,8 @@
 <?php
 session_start();
 require_once('../config.php');
-require_once('../vendor/autoload.php'); // Pour TCPDF
+require_once __DIR__ . '/../../vendor/autoload.php';
+
 
 use TCPDF as PDF;
 
