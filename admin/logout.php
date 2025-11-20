@@ -13,6 +13,9 @@ if (isset($_SESSION['user_id'])) {
     $conn->close();
 }
 
+// ✅ Sauvegarder le nom de l'utilisateur pour le message
+$username = $_SESSION['username'] ?? 'Utilisateur';
+
 // ✅ Détruire toutes les variables de session
 $_SESSION = array();
 
@@ -24,7 +27,7 @@ if (isset($_COOKIE[session_name()])) {
 // ✅ Détruire la session
 session_destroy();
 
-// ✅ Redirection vers la page de connexion
-header("Location: login.php?message=disconnected");
+// ✅ Redirection vers la page de connexion avec message
+header("Location: login.php?disconnected=1&user=" . urlencode($username));
 exit();
 ?>

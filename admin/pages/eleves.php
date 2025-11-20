@@ -25,8 +25,13 @@ if (isset($_GET['delete'])) {
 // AJOUT/MODIFICATION
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
-    $nom = trim($_POST['nom']);
-    $prenom = trim($_POST['prenom']);
+    
+    // Traiter le nom complet (séparer nom et prénom)
+    $nom_complet = trim($_POST['nom_complet']);
+    $parts = explode(' ', $nom_complet, 2);
+    $nom = $parts[0]; // Premier mot = NOM
+    $prenom = isset($parts[1]) ? $parts[1] : ''; // Reste = Prénom(s)
+    
     $date_naissance = $_POST['date_naissance'];
     $lieu_naissance = trim($_POST['lieu_naissance']);
     $genre = $_POST['genre'];
@@ -114,7 +119,8 @@ $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $classe_filter = isset($_GET['classe']) ? intval($_GET['classe']) : 0;
 $statut_filter = isset($_GET['statut']) ? $_GET['statut'] : '';
 
-$sql = "SELECT e.*, c.nom as classe_nom FROM eleves e 
+$sql = "SELECT e.*, c.nom as classe_nom 
+        FROM eleves e 
         LEFT JOIN inscriptions i ON e.id = i.eleve_id AND i.statut = 'active'
         LEFT JOIN classes c ON i.classe_id = c.id
         WHERE 1=1";
@@ -130,7 +136,7 @@ if ($statut_filter) {
     $sql .= " AND e.statut = '$statut_filter'";
 }
 
-$sql .= " ORDER BY e.nom, e.prenom";
+$sql .= " GROUP BY e.id ORDER BY e.nom, e.prenom";
 $eleves = $conn->query($sql);
 
 // Liste des classes pour le filtre
@@ -156,6 +162,7 @@ $classes_form = $conn->query("SELECT * FROM classes ORDER BY nom");
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png"  href="../assets/favicon.png">
     <title>Gestion des Élèves | École Mandroso</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -364,12 +371,12 @@ $classes_form = $conn->query("SELECT * FROM classes ORDER BY nom");
                         <div class="md:col-span-2">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Nom complet de l'élève *</label>
                             <input type="text" name="nom_complet" required 
-                                   placeholder="Ex: Hajaniaina Hyacinthe"
+                                   placeholder="Ex: RAKOTO Jean Claude"
                                    value="<?= $eleve_edit ? htmlspecialchars($eleve_edit['nom'] . ' ' . $eleve_edit['prenom']) : '' ?>"
                                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
                             <p class="text-xs text-gray-500 mt-1">
                                 <i class="fas fa-info-circle mr-1"></i>
-                                Format : NOM en MAJUSCULES suivi du(des) prénom(s). Exemple : Hajaniaina Hyacinthe
+                                Format : NOM en MAJUSCULES suivi du(des) prénom(s). Exemple : RAKOTO Jean Claude
                             </p>
                         </div>
                         
