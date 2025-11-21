@@ -1,39 +1,45 @@
 <?php
+
+declare(strict_types=1);
+
 session_start();
 
-// ✅ Redirection si déjà connecté
+// Redirection si déjà connecté
 if (isset($_SESSION['user_id'])) {
     header("Location: index.php");
     exit();
 }
 
-include('config.php');
+require_once __DIR__ . '/config.php';
 
 $error = "";
 
-// ✅ Vérifie si le formulaire est soumis
+// Vérifie si le formulaire est soumis
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email']);
-    $password = trim($_POST['password']);
+    $email = trim($_POST['email'] ?? '');
+    $password = trim($_POST['password'] ?? '');
 
     // Validation basique
     if (empty($email) || empty($password)) {
         $error = "Tous les champs sont obligatoires.";
     } else {
         // Recherche de l'utilisateur
-        $stmt = $conn->prepare("SELECT id, username, email, password_hash, role, actif FROM users WHERE email = ? LIMIT 1");
+        $stmt = $conn->prepare(
+            "SELECT id, username, email, password_hash, role, actif 
+             FROM users 
+             WHERE email = ? 
+             LIMIT 1"
+        );
         $stmt->bind_param("s", $email);
         $stmt->execute();
         $result = $stmt->get_result();
 
         if ($user = $result->fetch_assoc()) {
-            // ✅ Vérifie si le compte est actif
+            // Vérifie si le compte est actif
             if ($user['actif'] != 1) {
                 $error = "Votre compte est désactivé. Contactez l'administrateur.";
-            } 
-            // ✅ Vérifie le mot de passe (hashé dans la base)
-            elseif (password_verify($password, $user['password_hash'])) {
-                // ✅ Régénère l'ID de session pour la sécurité
+            } elseif (password_verify($password, $user['password_hash'])) {
+                // Régénère l'ID de session pour la sécurité
                 session_regenerate_id(true);
                 
                 $_SESSION['user_id'] = $user['id'];
@@ -42,30 +48,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['role'] = $user['role'];
                 $_SESSION['login_time'] = time();
 
-                // ✅ Log de connexion (optionnel mais recommandé)
-                $log_stmt = $conn->prepare("INSERT INTO logs_activite (user_id, action, details, adresse_ip) VALUES (?, 'Connexion', 'Connexion réussie', ?)");
-                $ip_address = $_SERVER['REMOTE_ADDR'];
-                $log_stmt->bind_param("is", $user['id'], $ip_address);
-                $log_stmt->execute();
+                // Log de connexion
+                $logStmt = $conn->prepare(
+                    "INSERT INTO logs_activite (user_id, action, details, adresse_ip) 
+                     VALUES (?, 'Connexion', 'Connexion réussie', ?)"
+                );
+                $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+                $logStmt->bind_param("is", $user['id'], $ipAddress);
+                $logStmt->execute();
 
-                // ✅ Redirection selon le rôle
-                switch ($user['role']) {
-                    case 'admin':
-                        header("Location: pages/dashboard.php");
-                        break;
-                    case 'enseignant':
-                        header("Location: enseignant/dashboard.php");
-                        break;
-                    case 'parent':
-                        header("Location: parent/dashboard.php");
-                        break;
-                    case 'eleve':
-                        header("Location: eleve/dashboard.php");
-                        break;
-                    default:
-                        header("Location: index.php");
-                        break;
-                }
+                // Redirection selon le rôle
+                $redirectMap = [
+                    'admin' => 'pages/dashboard.php',
+                    'enseignant' => 'enseignant/dashboard.php',
+                    'parent' => 'parent/dashboard.php',
+                    'eleve' => 'eleve/dashboard.php',
+                ];
+                
+                $redirect = $redirectMap[$user['role']] ?? 'index.php';
+                header("Location: " . $redirect);
                 exit();
             } else {
                 $error = "Mot de passe incorrect.";

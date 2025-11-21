@@ -1,19 +1,22 @@
 <?php
+
+declare(strict_types=1);
+
 session_start();
 
-// ✅ Vérification de la connexion
+// Vérification de la connexion
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../login.php");
     exit();
 }
 
-// ✅ Vérification du rôle admin
+// Vérification du rôle admin
 if ($_SESSION['role'] !== 'admin') {
     header("Location: ../index.php");
     exit();
 }
 
-include('../config.php');
+require_once __DIR__ . '/../config.php';
 
 // Récupération des statistiques
 $stats = [];
@@ -27,7 +30,13 @@ $result = $conn->query("SELECT COUNT(*) as total FROM enseignants WHERE statut =
 $stats['enseignants'] = $result->fetch_assoc()['total'];
 
 // Nombre de classes
-$result = $conn->query("SELECT COUNT(*) as total FROM classes WHERE annee_scolaire_id = (SELECT id FROM annees_scolaires WHERE actif = 1 LIMIT 1)");
+$result = $conn->query(
+    "SELECT COUNT(*) as total 
+     FROM classes 
+     WHERE annee_scolaire_id = (
+         SELECT id FROM annees_scolaires WHERE actif = 1 LIMIT 1
+     )"
+);
 $stats['classes'] = $result->fetch_assoc()['total'];
 
 // Paiements en attente
@@ -39,9 +48,13 @@ $result = $conn->query("SELECT COUNT(*) as total FROM absences WHERE date = CURD
 $stats['absences_jour'] = $result->fetch_assoc()['total'];
 
 // Récupération des activités récentes
-$activites = $conn->query("SELECT la.*, u.username FROM logs_activite la 
-                          LEFT JOIN users u ON la.user_id = u.id 
-                          ORDER BY la.date_heure DESC LIMIT 5");
+$activites = $conn->query(
+    "SELECT la.*, u.username 
+     FROM logs_activite la 
+     LEFT JOIN users u ON la.user_id = u.id 
+     ORDER BY la.date_heure DESC 
+     LIMIT 5"
+);
 ?>
 <!DOCTYPE html>
 <html lang="fr">

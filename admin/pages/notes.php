@@ -1,10 +1,15 @@
 <?php
+
+declare(strict_types=1);
+
 session_start();
+
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login.php");
     exit();
 }
-include('../config.php');
+
+require_once __DIR__ . '/../config.php';
 
 // SUPPRESSION
 if (isset($_GET['delete'])) {
@@ -28,22 +33,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $trimestre = intval($_POST['trimestre']);
     $commentaire = trim($_POST['commentaire']);
     
-    // Année scolaire active
-    $annee_result = $conn->query("SELECT id FROM annees_scolaires WHERE actif = 1 LIMIT 1");
-    $annee = $annee_result->fetch_assoc();
-    $annee_scolaire_id = $annee['id'];
+    // Année scolaire active - Vérifier avec plusieurs méthodes pour gérer différents types de stockage
+    $annee_scolaire_id = null;
     
-    if ($id > 0) {
-        $stmt = $conn->prepare("UPDATE notes SET eleve_id=?, matiere_id=?, enseignant_id=?, type_evaluation=?, note=?, note_max=?, coefficient=?, date_evaluation=?, trimestre=?, commentaire=? WHERE id=?");
-        $stmt->bind_param("iiisdddsisi", $eleve_id, $matiere_id, $enseignant_id, $type_evaluation, $note, $note_max, $coefficient, $date_evaluation, $trimestre, $commentaire, $id);
-    } else {
-        $stmt = $conn->prepare("INSERT INTO notes (eleve_id, matiere_id, enseignant_id, type_evaluation, note, note_max, coefficient, date_evaluation, trimestre, annee_scolaire_id, commentaire) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("iiisdddsiss", $eleve_id, $matiere_id, $enseignant_id, $type_evaluation, $note, $note_max, $coefficient, $date_evaluation, $trimestre, $annee_scolaire_id, $commentaire);
+    // Méthode 1: Comparaison stricte avec 1
+    $annee_result = $conn->query("SELECT id FROM annees_scolaires WHERE actif = 1 LIMIT 1");
+    if ($annee_result && $annee_result->num_rows > 0) {
+        $annee = $annee_result->fetch_assoc();
+        if ($annee && isset($annee['id'])) {
+            $annee_scolaire_id = (int)$annee['id'];
+        }
     }
     
-    $stmt->execute();
-    header("Location: notes.php?success=1");
-    exit();
+    // Méthode 2: Si pas trouvé, essayer avec CAST
+    if (!$annee_scolaire_id) {
+        $annee_result2 = $conn->query("SELECT id FROM annees_scolaires WHERE CAST(actif AS UNSIGNED) = 1 LIMIT 1");
+        if ($annee_result2 && $annee_result2->num_rows > 0) {
+            $annee = $annee_result2->fetch_assoc();
+            if ($annee && isset($annee['id'])) {
+                $annee_scolaire_id = (int)$annee['id'];
+            }
+        }
+    }
+    
+    // Méthode 3: Si toujours pas trouvé, prendre la plus récente avec actif > 0
+    if (!$annee_scolaire_id) {
+        $annee_result3 = $conn->query("SELECT id FROM annees_scolaires WHERE actif > 0 ORDER BY date_debut DESC LIMIT 1");
+        if ($annee_result3 && $annee_result3->num_rows > 0) {
+            $annee = $annee_result3->fetch_assoc();
+            if ($annee && isset($annee['id'])) {
+                $annee_scolaire_id = (int)$annee['id'];
+            }
+        }
+    }
+    
+    // Si toujours pas trouvé, afficher une erreur
+    if (!$annee_scolaire_id) {
+        $error = "Aucune année scolaire active trouvée. Veuillez activer une année scolaire dans les paramètres.";
+    }
+    
+    // Récupérer l'enseignant_id depuis le formulaire ou utiliser le premier enseignant disponible
+    $enseignant_id = isset($_POST['enseignant_id']) ? intval($_POST['enseignant_id']) : 0;
+    
+    if ($enseignant_id <= 0) {
+        // Si aucun enseignant sélectionné, prendre le premier enseignant actif
+        $enseignant_result = $conn->query("SELECT id FROM enseignants WHERE statut = 'actif' LIMIT 1");
+        if ($enseignant_result && $enseignant_result->num_rows > 0) {
+            $enseignant = $enseignant_result->fetch_assoc();
+            $enseignant_id = $enseignant['id'];
+        } else {
+            $error = "Aucun enseignant actif trouvé. Veuillez créer un enseignant dans les paramètres.";
+        }
+    }
+    
+    // Vérifier que l'enseignant existe
+    if ($enseignant_id > 0) {
+        $check_enseignant = $conn->query("SELECT id FROM enseignants WHERE id = $enseignant_id");
+        if ($check_enseignant->num_rows == 0) {
+            $error = "L'enseignant sélectionné n'existe pas.";
+        }
+    }
+    
+    // Si pas d'erreur, procéder à l'insertion/mise à jour
+    if (empty($error)) {
+        if ($id > 0) {
+            $stmt = $conn->prepare("UPDATE notes SET eleve_id=?, matiere_id=?, enseignant_id=?, type_evaluation=?, note=?, note_max=?, coefficient=?, date_evaluation=?, trimestre=?, commentaire=? WHERE id=?");
+            $stmt->bind_param("iiisdddsisi", $eleve_id, $matiere_id, $enseignant_id, $type_evaluation, $note, $note_max, $coefficient, $date_evaluation, $trimestre, $commentaire, $id);
+        } else {
+            $stmt = $conn->prepare("INSERT INTO notes (eleve_id, matiere_id, enseignant_id, type_evaluation, note, note_max, coefficient, date_evaluation, trimestre, annee_scolaire_id, commentaire) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("iiisdddsisi", $eleve_id, $matiere_id, $enseignant_id, $type_evaluation, $note, $note_max, $coefficient, $date_evaluation, $trimestre, $annee_scolaire_id, $commentaire);
+        }
+        
+        try {
+            $stmt->execute();
+            header("Location: notes.php?success=1");
+            exit();
+        } catch (mysqli_sql_exception $e) {
+            $error = "Erreur lors de l'enregistrement : " . $e->getMessage();
+        }
+    }
 }
 
 // Filtres
@@ -76,6 +144,7 @@ $notes = $conn->query($sql);
 // Listes pour les filtres et formulaires
 $classes = $conn->query("SELECT * FROM classes ORDER BY nom");
 $matieres = $conn->query("SELECT * FROM matieres ORDER BY nom");
+$enseignants = $conn->query("SELECT * FROM enseignants WHERE statut = 'actif' ORDER BY nom, prenom");
 $eleves = $conn->query("SELECT e.*, c.nom as classe_nom FROM eleves e LEFT JOIN inscriptions i ON e.id = i.eleve_id AND i.statut = 'active' LEFT JOIN classes c ON i.classe_id = c.id WHERE e.statut = 'actif' ORDER BY e.nom");
 
 // Note à modifier
@@ -109,6 +178,12 @@ if (isset($_GET['edit'])) {
             <?php if (isset($_GET['success'])): ?>
                 <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded">
                     <i class="fas fa-check-circle mr-2"></i> Opération réussie !
+                </div>
+            <?php endif; ?>
+            
+            <?php if (isset($error) && !empty($error)): ?>
+                <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded">
+                    <i class="fas fa-exclamation-circle mr-2"></i> <?= htmlspecialchars($error) ?>
                 </div>
             <?php endif; ?>
             
@@ -298,6 +373,21 @@ if (isset($_GET['edit'])) {
                                 ?>
                                     <option value="<?= $matiere['id'] ?>" <?= ($note_edit && $note_edit['matiere_id'] == $matiere['id']) ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($matiere['nom']) ?> (Coef: <?= $matiere['coefficient'] ?>)
+                                    </option>
+                                <?php endwhile; ?>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Enseignant *</label>
+                            <select name="enseignant_id" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                                <option value="">Sélectionner un enseignant</option>
+                                <?php 
+                                $enseignants_form = $conn->query("SELECT * FROM enseignants WHERE statut = 'actif' ORDER BY nom, prenom");
+                                while($enseignant = $enseignants_form->fetch_assoc()): 
+                                ?>
+                                    <option value="<?= $enseignant['id'] ?>" <?= ($note_edit && $note_edit['enseignant_id'] == $enseignant['id']) ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($enseignant['nom'] . ' ' . $enseignant['prenom']) ?> - <?= htmlspecialchars($enseignant['specialite']) ?>
                                     </option>
                                 <?php endwhile; ?>
                             </select>

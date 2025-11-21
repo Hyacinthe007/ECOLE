@@ -86,8 +86,8 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
       </a>
 
       <!-- Emploi du Temps -->
-      <a href="emploi_du_temps.php" class="menu-item flex items-center gap-3 p-3 <?= $current_page == 'emploi_du_temps' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50' ?> rounded-lg transition-all duration-200">
-        <i class="fas fa-calendar-alt w-5 text-center <?= $current_page == 'emploi_du_temps' ? 'text-blue-700' : 'text-gray-600' ?>"></i>
+      <a href="emploi-temps.php" class="menu-item flex items-center gap-3 p-3 <?= $current_page == 'emploi-temps' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50' ?> rounded-lg transition-all duration-200">
+        <i class="fas fa-calendar-alt w-5 text-center <?= $current_page == 'emploi-temps' ? 'text-blue-700' : 'text-gray-600' ?>"></i>
         <span class="menu-text">Emploi du Temps</span>
         <span class="tooltip">Emploi du Temps</span>
       </a>

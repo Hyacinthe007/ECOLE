@@ -211,10 +211,10 @@ $classes_form = $conn->query("SELECT * FROM classes ORDER BY nom");
             
             <!-- Filtres et recherche -->
             <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
-                <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <form id = "searchForm" method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Recherche</label>
-                        <input type="text" name="search" value="<?= htmlspecialchars($search) ?>" 
+                        <input type="text" id="searchInput" name="search" value="<?= htmlspecialchars($search) ?>" 
                                placeholder="Nom, prénom ou matricule..."
                                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
                     </div>
@@ -471,7 +471,24 @@ $classes_form = $conn->query("SELECT * FROM classes ORDER BY nom");
         <?php if ($eleve_edit): ?>
             toggleModal();
         <?php endif; ?>
+        
+        //Filtre automatiquement les champs en fonctions des valeurs tapées dans le champ recherche
+        const searchInput = document.getElementById('searchInput');
+        const searchForm = document.getElementById('searchForm');
+        let timeout = null;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(timeout);
+            // Attend 500ms après la dernière frappe avant de soumettre
+            timeout = setTimeout(() => {
+                searchForm.submit();
+            }, 500);
+        });
+
+        //Filtre les statuts
+        document.querySelectorAll('#searchForm select').forEach(select => {
+        select.addEventListener('change', () => searchForm.submit());
+        });
     </script>
-    
+
 </body>
 </html>
