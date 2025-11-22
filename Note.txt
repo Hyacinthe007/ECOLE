@@ -1,0 +1,2 @@
+Matière
+Ajoute une classe puisque chaque matière est rattaché à une classe avec sa propore coefficient donc Mathématique n'est pas identique pour toute les classes.

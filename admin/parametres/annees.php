@@ -40,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
     $libelle = trim($_POST['libelle']);
     $date_debut = $_POST['date_debut'];
     $date_fin = $_POST['date_fin'];
+    $actif = isset($_POST['actif']) ? 1 : 0;
 
     // Validation
     if (empty($libelle)) {
@@ -53,12 +54,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
     // Si pas d'erreur de validation, on continue
     if (empty($error)) {
         if ($id > 0) {
-            // UPDATE
-            $stmt = $conn->prepare("UPDATE annees_scolaires SET libelle=?, date_debut=?, date_fin=? WHERE id=?");
-            $stmt->bind_param("sssi", $libelle, $date_debut, $date_fin, $id);
+            // UPDATE - Si on active cette année, désactiver les autres
+            if ($actif == 1) {
+                $conn->query("UPDATE annees_scolaires SET actif = 0");
+            }
+            $stmt = $conn->prepare("UPDATE annees_scolaires SET libelle=?, date_debut=?, date_fin=?, actif=? WHERE id=?");
+            $stmt->bind_param("sssii", $libelle, $date_debut, $date_fin, $actif, $id);
         } else {
-            // INSERT - Nouvelle année scolaire (actif = 0 par défaut)
-            $stmt = $conn->prepare("INSERT INTO annees_scolaires (libelle, date_debut, date_fin, actif) VALUES (?, ?, ?, 0)");
+            // INSERT - Nouvelle année scolaire (actif = 1 par défaut)
+            // Si on active cette nouvelle année, désactiver les autres
+            if ($actif == 1) {
+                $conn->query("UPDATE annees_scolaires SET actif = 0");
+            }
+            $stmt = $conn->prepare("INSERT INTO annees_scolaires (libelle, date_debut, date_fin, actif) VALUES (?, ?, ?, 1)");
             $stmt->bind_param("sss", $libelle, $date_debut, $date_fin);
         }
 
@@ -114,7 +122,7 @@ if (isset($_GET['edit'])) {
         </h2>
         <p class="text-gray-600">Liste et gestion des années scolaires</p>
     </div>
-    <button onclick="toggleAnneeModal()" class="mt-4 md:mt-0 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
+    <button onclick="addAnnee()" class="mt-4 md:mt-0 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
         <i class="fas fa-plus mr-2"></i> Ajouter une année scolaire
     </button>
 </div>
@@ -161,9 +169,9 @@ if (isset($_GET['edit'])) {
                                         </button>
                                     </form>
                                 <?php endif; ?>
-                                <a href="?page=<?= $current_page ?? 'annees' ?>&edit=<?= $annee['id'] ?>" class="text-blue-600 hover:text-blue-900 mr-3">
+                                <button onclick="editAnnee(<?= htmlspecialchars(json_encode($annee)) ?>)" class="text-blue-600 hover:text-blue-900 mr-3">
                                     <i class="fas fa-edit"></i>
-                                </a>
+                                </button>
                                 <form method="POST" class="inline" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette année scolaire ?')">
                                     <input type="hidden" name="action" value="delete_annee">
                                     <input type="hidden" name="annee_id" value="<?= $annee['id'] ?>">
@@ -229,9 +237,36 @@ if (isset($_GET['edit'])) {
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Date de fin *</label>
                         <input type="date" name="date_fin" required
-                               value="<?= $annee_edit ? $annee_edit['date_fin'] : '' ?>"
+                               value="<?= $annee_edit ? $annee_edit['date_fin'] : '' ?>" 
                                class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
                     </div>
+                    
+                    <?php if ($annee_edit): ?>
+                        <div class="md:col-span-2">
+                            <label class="flex items-center space-x-3 cursor-pointer">
+                                <input type="checkbox" name="actif" value="1" 
+                                       <?= $annee_edit['actif'] ? 'checked' : '' ?>
+                                       class="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                                <span class="text-sm font-medium text-gray-700">
+                                    Activer cette année scolaire
+                                </span>
+                            </label>
+                            <p class="text-xs text-gray-500 mt-1 ml-8">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                Si activée, cette année deviendra l'année active et les autres seront désactivées automatiquement.
+                            </p>
+                        </div>
+                    <?php else: ?>
+                        <div class="md:col-span-2 bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+                            <div class="flex items-start">
+                                <i class="fas fa-info-circle text-blue-600 text-xl mr-3 mt-1"></i>
+                                <div>
+                                    <p class="font-medium text-blue-800">Année active par défaut</p>
+                                    <p class="text-sm text-blue-700">La nouvelle année scolaire sera automatiquement activée. Les autres années seront désactivées.</p>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
                 
                 <div class="flex justify-end space-x-4 pt-6 border-t">
@@ -262,8 +297,64 @@ function toggleAnneeModal() {
     }
 }
 
+function addAnnee() {
+    const form = document.querySelector('#modalAnnee form');
+    
+    // Supprimer le champ annee_id si présent
+    const idInput = form.querySelector('input[name="annee_id"]');
+    if (idInput) {
+        idInput.remove();
+    }
+    
+    // Changer l'action
+    form.querySelector('input[name="action"]').value = 'add_annee';
+    
+    // Réinitialiser le formulaire
+    form.reset();
+    
+    // Changer le titre du modal
+    document.querySelector('#modalAnnee h2').textContent = 'Ajouter une année scolaire';
+    
+    // Ouvrir le modal
+    toggleAnneeModal();
+}
+
+function editAnnee(annee) {
+    const form = document.querySelector('#modalAnnee form');
+    
+    // Ajouter ou mettre à jour le champ hidden annee_id
+    let idInput = form.querySelector('input[name="annee_id"]');
+    if (!idInput) {
+        idInput = document.createElement('input');
+        idInput.type = 'hidden';
+        idInput.name = 'annee_id';
+        form.insertBefore(idInput, form.querySelector('input[name="action"]').nextSibling);
+    }
+    idInput.value = annee.id;
+    
+    // Changer l'action
+    form.querySelector('input[name="action"]').value = 'update_annee';
+    
+    // Remplir les champs du formulaire
+    form.querySelector('input[name="libelle"]').value = annee.libelle || '';
+    form.querySelector('input[name="date_debut"]').value = annee.date_debut || '';
+    form.querySelector('input[name="date_fin"]').value = annee.date_fin || '';
+    
+    // Cocher la checkbox actif si l'année est active
+    const actifCheckbox = form.querySelector('input[name="actif"]');
+    if (actifCheckbox) {
+        actifCheckbox.checked = annee.actif == 1;
+    }
+    
+    // Changer le titre du modal
+    document.querySelector('#modalAnnee h2').textContent = 'Modifier l\'année scolaire';
+    
+    // Ouvrir le modal
+    toggleAnneeModal();
+}
+
 // Ouvrir modal si mode édition
 <?php if ($annee_edit): ?>
-    toggleAnneeModal();
+    editAnnee(<?= htmlspecialchars(json_encode($annee_edit)) ?>);
 <?php endif; ?>
 </script>

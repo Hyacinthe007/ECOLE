@@ -27,7 +27,7 @@ if ($classe_filter > 0) {
         JOIN inscriptions i ON e.id = i.eleve_id
         JOIN classes c ON i.classe_id = c.id
         WHERE i.classe_id = $classe_filter 
-        AND i.statut = 'active'
+        AND i.statut = 'valide'
         AND e.statut = 'actif'
         ORDER BY e.nom, e.prenom
     ");
@@ -200,7 +200,7 @@ $params = $params_result->fetch_assoc();
                                     FROM eleves e
                                     JOIN inscriptions i ON e.id = i.eleve_id
                                     WHERE i.classe_id = $classe_filter 
-                                    AND i.statut = 'active'
+                                    AND i.statut = 'valide'
                                     AND e.statut = 'actif'
                                     ORDER BY e.nom, e.prenom
                                 ");

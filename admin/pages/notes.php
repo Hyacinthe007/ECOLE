@@ -124,7 +124,7 @@ $sql = "SELECT n.*, e.nom as eleve_nom, e.prenom as eleve_prenom, e.matricule,
         FROM notes n
         JOIN eleves e ON n.eleve_id = e.id
         JOIN matieres m ON n.matiere_id = m.id
-        LEFT JOIN inscriptions i ON e.id = i.eleve_id AND i.statut = 'active'
+        LEFT JOIN inscriptions i ON e.id = i.eleve_id AND i.statut = 'valide'
         LEFT JOIN classes c ON i.classe_id = c.id
         WHERE 1=1";
 
@@ -145,7 +145,7 @@ $notes = $conn->query($sql);
 $classes = $conn->query("SELECT * FROM classes ORDER BY nom");
 $matieres = $conn->query("SELECT * FROM matieres ORDER BY nom");
 $enseignants = $conn->query("SELECT * FROM enseignants WHERE statut = 'actif' ORDER BY nom, prenom");
-$eleves = $conn->query("SELECT e.*, c.nom as classe_nom FROM eleves e LEFT JOIN inscriptions i ON e.id = i.eleve_id AND i.statut = 'active' LEFT JOIN classes c ON i.classe_id = c.id WHERE e.statut = 'actif' ORDER BY e.nom");
+$eleves = $conn->query("SELECT e.*, c.nom as classe_nom FROM eleves e LEFT JOIN inscriptions i ON e.id = i.eleve_id AND i.statut = 'valide' LEFT JOIN classes c ON i.classe_id = c.id WHERE e.statut = 'actif' ORDER BY e.nom");
 
 // Note à modifier
 $note_edit = null;
@@ -353,7 +353,7 @@ if (isset($_GET['edit'])) {
                             <select name="eleve_id" required class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <option value="">Sélectionner un élève</option>
                                 <?php 
-                                $eleves_form = $conn->query("SELECT e.*, c.nom as classe_nom FROM eleves e LEFT JOIN inscriptions i ON e.id = i.eleve_id AND i.statut = 'active' LEFT JOIN classes c ON i.classe_id = c.id WHERE e.statut = 'actif' ORDER BY e.nom");
+                                $eleves_form = $conn->query("SELECT e.*, c.nom as classe_nom FROM eleves e LEFT JOIN inscriptions i ON e.id = i.eleve_id AND i.statut = 'valide' LEFT JOIN classes c ON i.classe_id = c.id WHERE e.statut = 'actif' ORDER BY e.nom");
                                 while($eleve = $eleves_form->fetch_assoc()): 
                                 ?>
                                     <option value="<?= $eleve['id'] ?>" <?= ($note_edit && $note_edit['eleve_id'] == $eleve['id']) ? 'selected' : '' ?>>

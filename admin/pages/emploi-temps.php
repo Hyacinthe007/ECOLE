@@ -10,6 +10,44 @@ include('../config.php');
 $classe_filter = isset($_GET['classe']) ? intval($_GET['classe']) : 0;
 $enseignant_filter = isset($_GET['enseignant']) ? intval($_GET['enseignant']) : 0;
 
+// --- Récupération des IDs pour suppression groupée ---
+if (isset($_GET['get_ids'])) {
+    $classe_id = intval($_GET['classe_id']);
+    $matiere_id = intval($_GET['matiere_id']);
+    $enseignant_id = intval($_GET['enseignant_id']);
+    $heure_debut = $_GET['heure_debut'];
+    $heure_fin = $_GET['heure_fin'];
+    
+    $result = $conn->query(
+        "SELECT id FROM emploi_temps 
+         WHERE classe_id = $classe_id 
+         AND matiere_id = $matiere_id 
+         AND enseignant_id = $enseignant_id 
+         AND heure_debut = '$heure_debut' 
+         AND heure_fin = '$heure_fin'"
+    );
+    
+    $ids = [];
+    while($row = $result->fetch_assoc()) {
+        $ids[] = $row['id'];
+    }
+    
+    header('Content-Type: application/json');
+    echo json_encode(['ids' => $ids]);
+    exit();
+}
+
+// --- Suppression groupée ---
+if (isset($_GET['delete_group'])) {
+    $ids = $_GET['delete_group'];
+    $ids_array = explode(',', $ids);
+    $ids_safe = array_map('intval', $ids_array);
+    $ids_string = implode(',', $ids_safe);
+    $conn->query("DELETE FROM emploi_temps WHERE id IN ($ids_string)");
+    header("Location: emploi-temps.php?success=1");
+    exit();
+}
+
 // --- Suppression ---
 if (isset($_GET['delete'])) {
     $id = intval($_GET['delete']);
@@ -47,7 +85,7 @@ $classes = $conn->query("SELECT * FROM classes ORDER BY nom");
 $enseignants = $conn->query("SELECT * FROM enseignants ORDER BY nom");
 $matieres = $conn->query("SELECT * FROM matieres ORDER BY nom");
 
-// --- Requête principale ---
+// --- Requête principale pour récupérer tous les emplois du temps ---
 $sql = "SELECT e.*, c.nom AS classe_nom, m.nom AS matiere_nom, ens.nom AS enseignant_nom, ens.prenom AS enseignant_prenom
         FROM emploi_temps e
         JOIN classes c ON e.classe_id = c.id
@@ -58,8 +96,39 @@ $sql = "SELECT e.*, c.nom AS classe_nom, m.nom AS matiere_nom, ens.nom AS enseig
 if ($classe_filter > 0) $sql .= " AND e.classe_id = $classe_filter";
 if ($enseignant_filter > 0) $sql .= " AND e.enseignant_id = $enseignant_filter";
 
-$sql .= " ORDER BY FIELD(e.jour_semaine,'Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'), e.heure_debut";
-$emplois = $conn->query($sql);
+$sql .= " ORDER BY c.nom, m.nom, e.heure_debut, FIELD(e.jour_semaine,'Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi')";
+$emplois_result = $conn->query($sql);
+
+// Organiser les données par classe, matière, enseignant, heure
+$emplois_organises = [];
+$jours_semaine = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
+
+while($e = $emplois_result->fetch_assoc()) {
+    $key = $e['classe_id'] . '_' . $e['matiere_id'] . '_' . $e['enseignant_id'] . '_' . $e['heure_debut'] . '_' . $e['heure_fin'];
+    
+    if (!isset($emplois_organises[$key])) {
+        $emplois_organises[$key] = [
+            'id' => $e['id'],
+            'classe_id' => $e['classe_id'],
+            'classe_nom' => $e['classe_nom'],
+            'matiere_id' => $e['matiere_id'],
+            'matiere_nom' => $e['matiere_nom'],
+            'enseignant_id' => $e['enseignant_id'],
+            'enseignant_nom' => $e['enseignant_nom'],
+            'enseignant_prenom' => $e['enseignant_prenom'],
+            'heure_debut' => $e['heure_debut'],
+            'heure_fin' => $e['heure_fin'],
+            'salle' => $e['salle'],
+            'jours' => []
+        ];
+    }
+    
+    // Ajouter le jour avec les détails
+    $emplois_organises[$key]['jours'][$e['jour_semaine']] = [
+        'id' => $e['id'],
+        'salle' => $e['salle']
+    ];
+}
 
 // --- Pour modification ---
 $edit_item = null;
@@ -98,7 +167,7 @@ if (isset($_GET['edit'])) {
         </h1>
         <p class="text-gray-600">Ajout et affichage des horaires de cours</p>
       </div>
-      <button onclick="toggleModal()" class="mt-4 md:mt-0 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
+      <button onclick="addEmploi()" class="mt-4 md:mt-0 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
         <i class="fas fa-plus mr-2"></i> Ajouter un créneau
       </button>
     </div>
@@ -140,38 +209,80 @@ if (isset($_GET['edit'])) {
       </form>
     </div>
 
-    <!-- Tableau -->
-    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
-      <table class="w-full">
-        <thead class="bg-gray-100">
+    <!-- Tableau matriciel -->
+    <div class="bg-white rounded-xl shadow-lg overflow-x-auto">
+      <table class="w-full min-w-max">
+        <thead class="bg-gray-100 sticky top-0">
           <tr>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Classe</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Jour</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Heure</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Matière</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Enseignant</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Salle</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Actions</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase border-r">Classe</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase border-r">Matière</th>
+            <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase border-r">Heure</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase border-r">Enseignant</th>
+            <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase border-r">Lundi</th>
+            <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase border-r">Mardi</th>
+            <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase border-r">Mercredi</th>
+            <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase border-r">Jeudi</th>
+            <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase border-r">Vendredi</th>
+            <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Actions</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-200">
-          <?php if ($emplois->num_rows > 0): ?>
-            <?php while($e = $emplois->fetch_assoc()): ?>
+          <?php if (!empty($emplois_organises)): ?>
+            <?php foreach($emplois_organises as $emploi): ?>
             <tr class="hover:bg-gray-50">
-              <td class="px-4 py-3"><?= htmlspecialchars($e['classe_nom']) ?></td>
-              <td class="px-4 py-3"><?= $e['jour_semaine'] ?></td>
-              <td class="px-4 py-3"><?= $e['heure_debut'] ?> - <?= $e['heure_fin'] ?></td>
-              <td class="px-4 py-3"><?= htmlspecialchars($e['matiere_nom']) ?></td>
-              <td class="px-4 py-3"><?= htmlspecialchars($e['enseignant_nom'].' '.$e['enseignant_prenom']) ?></td>
-              <td class="px-4 py-3"><?= htmlspecialchars($e['salle']) ?></td>
-              <td class="px-4 py-3">
-                <a href="?edit=<?= $e['id'] ?>" class="text-blue-600 hover:text-blue-900 mr-3"><i class="fas fa-edit"></i></a>
-                <a href="?delete=<?= $e['id'] ?>" onclick="return confirm('Supprimer ce créneau ?')" class="text-red-600 hover:text-red-900"><i class="fas fa-trash"></i></a>
+              <td class="px-4 py-3 text-sm font-medium text-gray-900 border-r whitespace-nowrap">
+                <?= htmlspecialchars($emploi['classe_nom']) ?>
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-700 border-r whitespace-nowrap">
+                <?= htmlspecialchars($emploi['matiere_nom']) ?>
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-700 text-center border-r whitespace-nowrap">
+                <?= $emploi['heure_debut'] ?> - <?= $emploi['heure_fin'] ?>
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-700 border-r whitespace-nowrap">
+                <?= htmlspecialchars($emploi['enseignant_nom'] . ' ' . $emploi['enseignant_prenom']) ?>
+              </td>
+              <?php foreach($jours_semaine as $jour): ?>
+                <td class="px-2 py-3 text-center border-r">
+                  <?php if (isset($emploi['jours'][$jour])): ?>
+                    <!-- Cours présent - Vert -->
+                    <div class="w-full h-10 bg-green-500 rounded flex items-center justify-center cursor-pointer hover:bg-green-600 transition group relative" 
+                         title="Cours: <?= htmlspecialchars($emploi['matiere_nom']) ?> - Salle: <?= htmlspecialchars($emploi['jours'][$jour]['salle'] ?: 'Non spécifiée') ?>"
+                         onclick="editEmploi(<?= $emploi['jours'][$jour]['id'] ?>)">
+                      <i class="fas fa-check text-white text-sm"></i>
+                      <span class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-10">
+                        <?= htmlspecialchars($emploi['jours'][$jour]['salle'] ?: 'Salle non spécifiée') ?>
+                      </span>
+                    </div>
+                  <?php else: ?>
+                    <!-- Pas de cours - Rouge -->
+                    <div class="w-full h-10 bg-red-500 rounded flex items-center justify-center cursor-pointer hover:bg-red-600 transition"
+                         title="Cliquez pour ajouter un cours ce jour"
+                         onclick="addEmploiForDay('<?= $jour ?>', <?= $emploi['classe_id'] ?>, <?= $emploi['matiere_id'] ?>, <?= $emploi['enseignant_id'] ?>, '<?= $emploi['heure_debut'] ?>', '<?= $emploi['heure_fin'] ?>')">
+                      <i class="fas fa-times text-white text-sm"></i>
+                    </div>
+                  <?php endif; ?>
+                </td>
+              <?php endforeach; ?>
+              <td class="px-4 py-3 text-center whitespace-nowrap">
+                <button onclick="editEmploiGroup(<?= htmlspecialchars(json_encode($emploi)) ?>)" 
+                        class="text-blue-600 hover:text-blue-900 mr-3" title="Modifier">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button onclick="deleteEmploiGroup(<?= $emploi['classe_id'] ?>, <?= $emploi['matiere_id'] ?>, <?= $emploi['enseignant_id'] ?>, '<?= $emploi['heure_debut'] ?>', '<?= $emploi['heure_fin'] ?>')" 
+                        class="text-red-600 hover:text-red-900" title="Supprimer">
+                  <i class="fas fa-trash"></i>
+                </button>
               </td>
             </tr>
-            <?php endwhile; ?>
+            <?php endforeach; ?>
           <?php else: ?>
-            <tr><td colspan="7" class="text-center text-gray-500 py-6">Aucun emploi du temps trouvé.</td></tr>
+            <tr>
+              <td colspan="10" class="text-center text-gray-500 py-8">
+                <i class="fas fa-inbox text-4xl mb-2"></i>
+                <p>Aucun emploi du temps trouvé.</p>
+              </td>
+            </tr>
           <?php endif; ?>
         </tbody>
       </table>
@@ -208,7 +319,9 @@ if (isset($_GET['edit'])) {
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Matière *</label>
         <select name="matiere_id" required class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
-          <?php while($m = $matieres->fetch_assoc()): ?>
+          <?php 
+          $matieres_modal = $conn->query("SELECT * FROM matieres ORDER BY nom");
+          while($m = $matieres_modal->fetch_assoc()): ?>
           <option value="<?= $m['id'] ?>" <?= ($edit_item && $edit_item['matiere_id'] == $m['id']) ? 'selected' : '' ?>>
             <?= htmlspecialchars($m['nom']) ?>
           </option>
@@ -219,7 +332,9 @@ if (isset($_GET['edit'])) {
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Enseignant *</label>
         <select name="enseignant_id" required class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
-          <?php while($ens = $enseignants->fetch_assoc()): ?>
+          <?php 
+          $enseignants_modal = $conn->query("SELECT * FROM enseignants ORDER BY nom");
+          while($ens = $enseignants_modal->fetch_assoc()): ?>
           <option value="<?= $ens['id'] ?>" <?= ($edit_item && $edit_item['enseignant_id'] == $ens['id']) ? 'selected' : '' ?>>
             <?= htmlspecialchars($ens['nom'].' '.$ens['prenom']) ?>
           </option>
@@ -267,8 +382,122 @@ if (isset($_GET['edit'])) {
 </div>
 
 <script>
-function toggleModal(){ document.getElementById('modal').classList.toggle('hidden'); }
-<?php if ($edit_item): ?> toggleModal(); <?php endif; ?>
+function toggleModal(){ 
+    document.getElementById('modal').classList.toggle('hidden');
+    if (!document.getElementById('modal').classList.contains('hidden')) {
+        document.body.style.overflow = 'hidden';
+    } else {
+        document.body.style.overflow = 'auto';
+    }
+}
+
+function addEmploi() {
+    const form = document.querySelector('#modal form');
+    
+    // Supprimer le champ id si présent
+    const idInput = form.querySelector('input[name="id"]');
+    if (idInput) {
+        idInput.remove();
+    }
+    
+    // Réinitialiser le formulaire
+    form.reset();
+    
+    // Changer le titre
+    document.querySelector('#modal h2').textContent = 'Ajouter un créneau';
+    
+    // Ouvrir le modal
+    toggleModal();
+}
+
+function addEmploiForDay(jour, classe_id, matiere_id, enseignant_id, heure_debut, heure_fin) {
+    const form = document.querySelector('#modal form');
+    
+    // Supprimer le champ id si présent
+    const idInput = form.querySelector('input[name="id"]');
+    if (idInput) {
+        idInput.remove();
+    }
+    
+    // Pré-remplir les champs
+    form.querySelector('select[name="classe_id"]').value = classe_id;
+    form.querySelector('select[name="matiere_id"]').value = matiere_id;
+    form.querySelector('select[name="enseignant_id"]').value = enseignant_id;
+    form.querySelector('select[name="jour_semaine"]').value = jour;
+    form.querySelector('input[name="heure_debut"]').value = heure_debut;
+    form.querySelector('input[name="heure_fin"]').value = heure_fin;
+    
+    // Changer le titre
+    document.querySelector('#modal h2').textContent = 'Ajouter un créneau';
+    
+    // Ouvrir le modal
+    toggleModal();
+}
+
+function editEmploi(id) {
+    // Charger les données du créneau via AJAX ou rediriger
+    window.location.href = '?edit=' + id;
+}
+
+function editEmploiGroup(emploi) {
+    // Ouvrir le modal avec les données du groupe pour modification
+    const form = document.querySelector('#modal form');
+    
+    // Supprimer le champ id si présent
+    const idInput = form.querySelector('input[name="id"]');
+    if (idInput) {
+        idInput.remove();
+    }
+    
+    // Pré-remplir les champs communs
+    form.querySelector('select[name="classe_id"]').value = emploi.classe_id;
+    form.querySelector('select[name="matiere_id"]').value = emploi.matiere_id;
+    form.querySelector('select[name="enseignant_id"]').value = emploi.enseignant_id;
+    form.querySelector('input[name="heure_debut"]').value = emploi.heure_debut;
+    form.querySelector('input[name="heure_fin"]').value = emploi.heure_fin;
+    
+    // Si plusieurs jours, on peut pré-remplir avec le premier jour trouvé
+    const jours = Object.keys(emploi.jours);
+    if (jours.length > 0) {
+        form.querySelector('select[name="jour_semaine"]').value = jours[0];
+        const idInput = document.createElement('input');
+        idInput.type = 'hidden';
+        idInput.name = 'id';
+        idInput.value = emploi.jours[jours[0]].id;
+        form.insertBefore(idInput, form.firstChild);
+        
+        form.querySelector('input[name="salle"]').value = emploi.jours[jours[0]].salle || '';
+    }
+    
+    // Changer le titre
+    document.querySelector('#modal h2').textContent = 'Modifier un créneau';
+    
+    // Ouvrir le modal
+    toggleModal();
+}
+
+function deleteEmploiGroup(classe_id, matiere_id, enseignant_id, heure_debut, heure_fin) {
+    if (confirm('Voulez-vous supprimer tous les créneaux de ce groupe (tous les jours) ?')) {
+        // Récupérer tous les IDs des créneaux de ce groupe
+        fetch(`?get_ids=1&classe_id=${classe_id}&matiere_id=${matiere_id}&enseignant_id=${enseignant_id}&heure_debut=${heure_debut}&heure_fin=${heure_fin}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.ids && data.ids.length > 0) {
+                    // Supprimer tous les créneaux en une seule requête
+                    const ids = data.ids.join(',');
+                    window.location.href = `?delete_group=${ids}`;
+                }
+            })
+            .catch(err => {
+                console.error('Erreur:', err);
+                alert('Erreur lors de la suppression');
+            });
+    }
+}
+
+<?php if ($edit_item): ?> 
+    toggleModal(); 
+<?php endif; ?>
 </script>
 </body>
 </html>

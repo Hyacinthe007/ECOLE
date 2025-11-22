@@ -159,7 +159,7 @@ if (isset($_GET['edit'])) {
         </h2>
         <p class="text-gray-600">Liste et gestion des enseignants de l'école</p>
     </div>
-    <button onclick="toggleEnseignantModal()" class="mt-4 md:mt-0 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
+    <button onclick="addEnseignant()" class="mt-4 md:mt-0 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
         <i class="fas fa-plus mr-2"></i> Ajouter un enseignant
     </button>
 </div>
@@ -207,9 +207,9 @@ if (isset($_GET['edit'])) {
                                 <?php endif; ?>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <a href="?page=<?= $current_page ?? 'enseignants' ?>&edit=<?= $ens['id'] ?>" class="text-blue-600 hover:text-blue-900 mr-3">
+                                <button onclick="editEnseignant(<?= htmlspecialchars(json_encode($ens)) ?>)" class="text-blue-600 hover:text-blue-900 mr-3">
                                     <i class="fas fa-edit"></i>
-                                </a>
+                                </button>
                                 <form method="POST" class="inline" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cet enseignant ?')">
                                     <input type="hidden" name="action" value="delete_enseignant">
                                     <input type="hidden" name="enseignant_id" value="<?= $ens['id'] ?>">
@@ -335,6 +335,62 @@ function toggleEnseignantModal() {
     }
 }
 
+function addEnseignant() {
+    const form = document.querySelector('#modalEnseignant form');
+    
+    // Supprimer le champ enseignant_id si présent
+    const idInput = form.querySelector('input[name="enseignant_id"]');
+    if (idInput) {
+        idInput.remove();
+    }
+    
+    // Changer l'action
+    form.querySelector('input[name="action"]').value = 'add_enseignant';
+    
+    // Réinitialiser le formulaire
+    form.reset();
+    
+    // Changer le titre du modal
+    document.querySelector('#modalEnseignant h2').textContent = 'Ajouter un enseignant';
+    
+    // Ouvrir le modal
+    toggleEnseignantModal();
+}
+
+function editEnseignant(enseignant) {
+    const form = document.querySelector('#modalEnseignant form');
+    
+    // Ajouter ou mettre à jour le champ hidden enseignant_id
+    let idInput = form.querySelector('input[name="enseignant_id"]');
+    if (!idInput) {
+        idInput = document.createElement('input');
+        idInput.type = 'hidden';
+        idInput.name = 'enseignant_id';
+        form.insertBefore(idInput, form.querySelector('input[name="action"]').nextSibling);
+    }
+    idInput.value = enseignant.id;
+    
+    // Changer l'action
+    form.querySelector('input[name="action"]').value = 'update_enseignant';
+    
+    // Remplir les champs du formulaire
+    form.querySelector('input[name="matricule"]').value = enseignant.matricule || '';
+    form.querySelector('input[name="nom"]').value = enseignant.nom || '';
+    form.querySelector('input[name="prenom"]').value = enseignant.prenom || '';
+    form.querySelector('select[name="specialite"]').value = enseignant.specialite || '';
+    form.querySelector('input[name="telephone"]').value = enseignant.telephone || '';
+    form.querySelector('input[name="email_pro"]').value = enseignant.email_pro || '';
+    form.querySelector('input[name="diplomes"]').value = enseignant.diplomes || '';
+    form.querySelector('input[name="date_embauche"]').value = enseignant.date_embauche || '';
+    form.querySelector('select[name="statut"]').value = enseignant.statut || 'actif';
+    
+    // Changer le titre du modal
+    document.querySelector('#modalEnseignant h2').textContent = 'Modifier l\'enseignant';
+    
+    // Ouvrir le modal
+    toggleEnseignantModal();
+}
+
 // Validation du téléphone
 document.addEventListener('DOMContentLoaded', function() {
     const telephoneInput = document.getElementById('telephone');
@@ -361,6 +417,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 <?php if ($enseignant_edit): ?>
-    toggleEnseignantModal();
+    editEnseignant(<?= htmlspecialchars(json_encode($enseignant_edit)) ?>);
 <?php endif; ?>
 </script>

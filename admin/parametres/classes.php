@@ -28,6 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
     $section = trim($_POST['section'] ?? '');
     $capacite_max = intval($_POST['capacite_max']);
     $annee_scolaire_id = intval($_POST['annee_scolaire_id']);
+    $enseignant_titulaire_id = isset($_POST['enseignant_titulaire_id']) && $_POST['enseignant_titulaire_id'] > 0 ? intval($_POST['enseignant_titulaire_id']) : null;
 
     // Validation
     if (empty($nom)) {
@@ -42,12 +43,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
     if (empty($error)) {
         if ($id > 0) {
             // UPDATE
-            $stmt = $conn->prepare("UPDATE classes SET nom=?, niveau=?, section=?, capacite_max=?, annee_scolaire_id=? WHERE id=?");
-            $stmt->bind_param("sssiii", $nom, $niveau, $section, $capacite_max, $annee_scolaire_id, $id);
+            $stmt = $conn->prepare("UPDATE classes SET nom=?, niveau=?, section=?, capacite_max=?, annee_scolaire_id=?, enseignant_titulaire_id=? WHERE id=?");
+            $stmt->bind_param("sssiiii", $nom, $niveau, $section, $capacite_max, $annee_scolaire_id, $enseignant_titulaire_id, $id);
         } else {
             // INSERT
-            $stmt = $conn->prepare("INSERT INTO classes (nom, niveau, section, capacite_max, annee_scolaire_id) VALUES (?, ?, ?, ?, ?)");
-            $stmt->bind_param("sssii", $nom, $niveau, $section, $capacite_max, $annee_scolaire_id);
+            $stmt = $conn->prepare("INSERT INTO classes (nom, niveau, section, capacite_max, annee_scolaire_id, enseignant_titulaire_id) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("sssiii", $nom, $niveau, $section, $capacite_max, $annee_scolaire_id, $enseignant_titulaire_id);
         }
 
         try {
@@ -68,12 +69,24 @@ if (isset($processingPostOnly) && $processingPostOnly) {
 // --- AFFICHAGE HTML ET INCLUDES APRES TOUT TRAITEMENT ---
 // Note: nav.php est déjà inclus dans parametres.php, pas besoin de le réinclure
 
-// Récupération des données
+// Récupérer l'année scolaire active
+$annee_active = $conn->query("SELECT id FROM annees_scolaires WHERE actif = 1 LIMIT 1");
+$annee_active_id = 0;
+if ($annee_active->num_rows > 0) {
+    $annee_active_id = $annee_active->fetch_assoc()['id'];
+}
+
+// Récupération des données avec comptage des élèves inscrits (pour l'année active uniquement)
+$annee_condition = $annee_active_id > 0 ? "AND i.annee_scolaire_id = $annee_active_id" : "";
 $classes = $conn->query(
-    "SELECT c.*, COUNT(i.id) as nb_eleves, a.libelle as annee_libelle 
+    "SELECT c.*, 
+            COUNT(DISTINCT i.eleve_id) as nb_eleves, 
+            a.libelle as annee_libelle,
+            u.username as enseignant_titulaire_nom
      FROM classes c 
-     LEFT JOIN inscriptions i ON c.id = i.classe_id AND i.statut = 'active' 
+     LEFT JOIN inscriptions i ON c.id = i.classe_id AND i.statut = 'valide' $annee_condition
      LEFT JOIN annees_scolaires a ON c.annee_scolaire_id = a.id 
+     LEFT JOIN users u ON c.enseignant_titulaire_id = u.id
      GROUP BY c.id 
      ORDER BY FIELD(c.niveau, 'maternelle', 'primaire', 'college', 'lycee'), c.nom"
 );
@@ -106,7 +119,7 @@ if (isset($_GET['edit'])) {
         </h2>
         <p class="text-gray-600">Liste et gestion des classes de l'école</p>
     </div>
-    <button onclick="toggleClasseModal()" class="mt-4 md:mt-0 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
+    <button onclick="addClasse()" class="mt-4 md:mt-0 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
         <i class="fas fa-plus mr-2"></i> Ajouter une classe
     </button>
 </div>
@@ -191,7 +204,7 @@ if (isset($_GET['edit'])) {
                                 <?= ucfirst($classe['niveau']) ?>
                             </span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-left">
                             <?= $classe['section'] ? htmlspecialchars($classe['section']) : '-' ?>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
@@ -212,9 +225,9 @@ if (isset($_GET['edit'])) {
                             <?= htmlspecialchars($classe['annee_libelle']) ?>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <a href="?page=<?= $current_page ?? 'classes' ?>&edit=<?= $classe['id'] ?>" class="text-blue-600 hover:text-blue-900 mr-3">
+                            <button onclick="editClasse(<?= htmlspecialchars(json_encode($classe)) ?>)" class="text-blue-600 hover:text-blue-900 mr-3">
                                 <i class="fas fa-edit"></i>
-                            </a>
+                            </button>
                             <form method="POST" class="inline" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette classe ?')">
                                 <input type="hidden" name="action" value="delete_classe">
                                 <input type="hidden" name="classe_id" value="<?= $classe['id'] ?>">
@@ -316,6 +329,33 @@ if (isset($_GET['edit'])) {
                             <?php endwhile; ?>
                         </select>
                     </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Enseignant titulaire</label>
+                        <select name="enseignant_titulaire_id" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                            <option value="">-- Aucun enseignant titulaire --</option>
+                            <?php 
+                            // Récupérer les utilisateurs avec le rôle enseignant
+                            $enseignants_users = $conn->query("
+                                SELECT u.id, u.username, e.nom, e.prenom 
+                                FROM users u 
+                                LEFT JOIN enseignants e ON u.id = e.user_id 
+                                WHERE u.role = 'enseignant' AND u.actif = 1
+                                ORDER BY COALESCE(e.nom, u.username), COALESCE(e.prenom, '')
+                            ");
+                            while($ens = $enseignants_users->fetch_assoc()): 
+                                $display_name = ($ens['nom'] && $ens['prenom']) ? $ens['nom'] . ' ' . $ens['prenom'] : $ens['username'];
+                            ?>
+                                <option value="<?= $ens['id'] ?>" <?= ($classe_edit && $classe_edit['enseignant_titulaire_id'] == $ens['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($display_name) ?>
+                                </option>
+                            <?php endwhile; ?>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Optionnel - Enseignant responsable de la classe
+                        </p>
+                    </div>
                 </div>
                 
                 <div class="flex justify-end space-x-4 pt-6 border-t">
@@ -344,6 +384,62 @@ function toggleClasseModal() {
     } else {
         document.body.style.overflow = 'auto';
     }
+}
+
+function addClasse() {
+    const form = document.querySelector('#modalClasse form');
+    
+    // Supprimer le champ classe_id si présent
+    const idInput = form.querySelector('input[name="classe_id"]');
+    if (idInput) {
+        idInput.remove();
+    }
+    
+    // Changer l'action
+    form.querySelector('input[name="action"]').value = 'add_classe';
+    
+    // Réinitialiser le formulaire
+    form.reset();
+    
+    // Réinitialiser la capacité à 40
+    form.querySelector('input[name="capacite_max"]').value = 40;
+    
+    // Changer le titre du modal
+    document.querySelector('#modalClasse h2').textContent = 'Ajouter une classe';
+    
+    // Ouvrir le modal
+    toggleClasseModal();
+}
+
+function editClasse(classe) {
+    const form = document.querySelector('#modalClasse form');
+    
+    // Ajouter ou mettre à jour le champ hidden classe_id
+    let idInput = form.querySelector('input[name="classe_id"]');
+    if (!idInput) {
+        idInput = document.createElement('input');
+        idInput.type = 'hidden';
+        idInput.name = 'classe_id';
+        form.insertBefore(idInput, form.querySelector('input[name="action"]').nextSibling);
+    }
+    idInput.value = classe.id;
+    
+    // Changer l'action
+    form.querySelector('input[name="action"]').value = 'update_classe';
+    
+    // Remplir les champs du formulaire
+    form.querySelector('input[name="nom"]').value = classe.nom || '';
+    form.querySelector('select[name="niveau"]').value = classe.niveau || '';
+    form.querySelector('input[name="section"]').value = classe.section || '';
+    form.querySelector('input[name="capacite_max"]').value = classe.capacite_max || 40;
+    form.querySelector('select[name="annee_scolaire_id"]').value = classe.annee_scolaire_id || '';
+    form.querySelector('select[name="enseignant_titulaire_id"]').value = classe.enseignant_titulaire_id || '';
+    
+    // Changer le titre du modal
+    document.querySelector('#modalClasse h2').textContent = 'Modifier la classe';
+    
+    // Ouvrir le modal
+    toggleClasseModal();
 }
 
 // Filtrage des classes
@@ -408,6 +504,6 @@ document.getElementById('searchClasse').addEventListener('input', filterClasses)
 
 // Ouvrir modal si mode édition
 <?php if ($classe_edit): ?>
-    toggleClasseModal();
+    editClasse(<?= htmlspecialchars(json_encode($classe_edit)) ?>);
 <?php endif; ?>
 </script>

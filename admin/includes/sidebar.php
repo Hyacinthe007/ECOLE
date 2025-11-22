@@ -50,13 +50,14 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
         <span class="tooltip">Tableau de bord</span>
       </a>
 
+
       <!-- Élèves -->
       <a href="eleves.php" class="menu-item flex items-center gap-3 p-3 <?= $current_page == 'eleves' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50' ?> rounded-lg transition-all duration-200">
         <i class="fas fa-user-graduate w-5 text-center <?= $current_page == 'eleves' ? 'text-blue-700' : 'text-gray-600' ?>"></i>
         <span class="menu-text">Élèves</span>
         <span class="tooltip">Élèves</span>
       </a>
-
+   
       <!-- Notes -->
       <a href="notes.php" class="menu-item flex items-center gap-3 p-3 <?= $current_page == 'notes' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50' ?> rounded-lg transition-all duration-200">
         <i class="fas fa-file-alt w-5 text-center <?= $current_page == 'notes' ? 'text-blue-700' : 'text-gray-600' ?>"></i>

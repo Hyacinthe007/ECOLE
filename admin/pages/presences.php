@@ -26,12 +26,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['presences'])) {
         if ($check->num_rows > 0) {
             // Mise à jour
             $stmt = $conn->prepare("UPDATE presences SET present = ?, remarque = ?, saisie_par_enseignant_id = ? WHERE eleve_id = ? AND date = ?");
-            $enseignant_id = $_SESSION['user_id'];
+            // Récupérer l'ID de l'enseignant depuis la table enseignants via user_id
+            $user_id = $_SESSION['user_id'];
+            $enseignant_result = $conn->query("SELECT id FROM enseignants WHERE user_id = $user_id LIMIT 1");
+            $enseignant_id = null;
+            if ($enseignant_result && $enseignant_result->num_rows > 0) {
+                $enseignant = $enseignant_result->fetch_assoc();
+                $enseignant_id = $enseignant['id'];
+            }
             $stmt->bind_param("isiss", $present, $remarque, $enseignant_id, $eleve_id, $date);
         } else {
             // Insertion
             $stmt = $conn->prepare("INSERT INTO presences (eleve_id, classe_id, date, present, remarque, saisie_par_enseignant_id) VALUES (?, ?, ?, ?, ?, ?)");
-            $enseignant_id = $_SESSION['user_id'];
+            // Récupérer l'ID de l'enseignant depuis la table enseignants via user_id
+            $user_id = $_SESSION['user_id'];
+            $enseignant_result = $conn->query("SELECT id FROM enseignants WHERE user_id = $user_id LIMIT 1");
+            $enseignant_id = null;
+            if ($enseignant_result && $enseignant_result->num_rows > 0) {
+                $enseignant = $enseignant_result->fetch_assoc();
+                $enseignant_id = $enseignant['id'];
+            }
             $stmt->bind_param("iisisi", $eleve_id, $classe_id, $date, $present, $remarque, $enseignant_id);
         }
         
@@ -66,7 +80,7 @@ if ($classe_selected > 0) {
         JOIN inscriptions i ON e.id = i.eleve_id
         LEFT JOIN presences p ON e.id = p.eleve_id AND p.date = '$date_selected'
         WHERE i.classe_id = $classe_selected 
-        AND i.statut = 'active'
+        AND i.statut = 'valide'
         AND e.statut = 'actif'
         ORDER BY e.nom, e.prenom
     ");
@@ -83,7 +97,7 @@ if ($classe_selected > 0) {
         FROM eleves e
         JOIN inscriptions i ON e.id = i.eleve_id
         LEFT JOIN presences p ON e.id = p.eleve_id AND p.date = '$date_selected'
-        WHERE i.classe_id = $classe_selected AND i.statut = 'active' AND e.statut = 'actif'
+        WHERE i.classe_id = $classe_selected AND i.statut = 'valide' AND e.statut = 'actif'
     ");
     $stats = $result->fetch_assoc();
     $stats['non_renseignes'] = $stats['total_eleves'] - ($stats['presents'] + $stats['absents']);

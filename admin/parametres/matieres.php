@@ -99,7 +99,7 @@ if (isset($_GET['edit'])) {
         </h2>
         <p class="text-gray-600">Liste et gestion des matières de l'école</p>
     </div>
-    <button onclick="toggleMatiereModal()" class="mt-4 md:mt-0 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
+    <button onclick="addMatiere()" class="mt-4 md:mt-0 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
         <i class="fas fa-plus mr-2"></i> Ajouter une matière
     </button>
 </div>
@@ -137,9 +137,9 @@ if (isset($_GET['edit'])) {
                                 <?= htmlspecialchars($matiere['description']) ?>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <a href="?page=<?= $current_page ?? 'matieres' ?>&edit=<?= $matiere['id'] ?>" class="text-blue-600 hover:text-blue-900 mr-3">
+                                <button onclick="editMatiere(<?= htmlspecialchars(json_encode($matiere)) ?>)" class="text-blue-600 hover:text-blue-900 mr-3">
                                     <i class="fas fa-edit"></i>
-                                </a>
+                                </button>
                                 <form method="POST" class="inline" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette matière ?')">
                                     <input type="hidden" name="action" value="delete_matiere">
                                     <input type="hidden" name="matiere_id" value="<?= $matiere['id'] ?>">
@@ -226,8 +226,61 @@ function toggleMatiereModal() {
         document.body.style.overflow = 'auto';
     }
 }
+
+function addMatiere() {
+    const form = document.querySelector('#modalMatiere form');
+    
+    // Supprimer le champ matiere_id si présent
+    const idInput = form.querySelector('input[name="matiere_id"]');
+    if (idInput) {
+        idInput.remove();
+    }
+    
+    // Changer l'action
+    form.querySelector('input[name="action"]').value = 'add_matiere';
+    
+    // Réinitialiser le formulaire
+    form.reset();
+    
+    // Changer le titre du modal
+    document.querySelector('#modalMatiere h2').textContent = 'Ajouter une matière';
+    
+    // Ouvrir le modal
+    toggleMatiereModal();
+}
+
+function editMatiere(matiere) {
+    const form = document.querySelector('#modalMatiere form');
+    
+    // Ajouter ou mettre à jour le champ hidden matiere_id
+    let idInput = form.querySelector('input[name="matiere_id"]');
+    if (!idInput) {
+        idInput = document.createElement('input');
+        idInput.type = 'hidden';
+        idInput.name = 'matiere_id';
+        form.insertBefore(idInput, form.querySelector('input[name="action"]').nextSibling);
+    }
+    idInput.value = matiere.id;
+    
+    // Changer l'action
+    form.querySelector('input[name="action"]').value = 'update_matiere';
+    
+    // Remplir les champs du formulaire
+    form.querySelector('input[name="nom"]').value = matiere.nom || '';
+    form.querySelector('input[name="code"]').value = matiere.code || '';
+    form.querySelector('input[name="coefficient"]').value = matiere.coefficient || '1';
+    form.querySelector('select[name="niveau"]').value = matiere.niveau || '';
+    form.querySelector('textarea[name="description"]').value = matiere.description || '';
+    
+    // Changer le titre du modal
+    document.querySelector('#modalMatiere h2').textContent = 'Modifier la matière';
+    
+    // Ouvrir le modal
+    toggleMatiereModal();
+}
+
 // Ouvre le modal si édition
 <?php if ($matiere_edit): ?>
-    toggleMatiereModal();
+    editMatiere(<?= htmlspecialchars(json_encode($matiere_edit)) ?>);
 <?php endif; ?>
 </script>

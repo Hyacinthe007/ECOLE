@@ -47,14 +47,15 @@ $stats['paiements_attente'] = $result->fetch_assoc()['total'];
 $result = $conn->query("SELECT COUNT(*) as total FROM absences WHERE date = CURDATE()");
 $stats['absences_jour'] = $result->fetch_assoc()['total'];
 
-// Récupération des activités récentes
+// Récupération des activités récentes pour les notifications
 $activites = $conn->query(
     "SELECT la.*, u.username 
      FROM logs_activite la 
      LEFT JOIN users u ON la.user_id = u.id 
      ORDER BY la.date_heure DESC 
-     LIMIT 5"
+     LIMIT 10"
 );
+$activites_count = $activites->num_rows;
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -272,9 +273,9 @@ $activites = $conn->query(
                     Actions rapides
                 </h2>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                    <a href="eleves.php?action=add" class="flex flex-col items-center justify-center p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition group">
+                    <a href="inscriptions.php" class="flex flex-col items-center justify-center p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition group">
                         <i class="fas fa-user-plus text-2xl md:text-3xl text-blue-600 mb-2 group-hover:scale-110 transition"></i>
-                        <span class="text-xs md:text-sm font-medium text-gray-700 text-center">Ajouter élève</span>
+                        <span class="text-xs md:text-sm font-medium text-gray-700 text-center">Nouvelle inscription</span>
                     </a>
                     <a href="presences.php" class="flex flex-col items-center justify-center p-4 bg-green-50 hover:bg-green-100 rounded-lg transition group">
                         <i class="fas fa-clipboard-check text-2xl md:text-3xl text-green-600 mb-2 group-hover:scale-110 transition"></i>
@@ -291,75 +292,6 @@ $activites = $conn->query(
                 </div>
             </div>
 
-            <!-- Graphiques et activités -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-                <!-- Activités récentes -->
-                <div class="bg-white rounded-xl shadow-lg p-4 md:p-6">
-                    <h2 class="text-lg md:text-xl font-bold text-gray-800 mb-4">
-                        <i class="fas fa-history text-blue-600 mr-2"></i>
-                        Activités récentes
-                    </h2>
-                    <div class="space-y-3">
-                        <?php if ($activites->num_rows > 0): ?>
-                            <?php while($activite = $activites->fetch_assoc()): ?>
-                                <div class="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
-                                    <i class="fas fa-circle text-blue-500 text-xs mt-2"></i>
-                                    <div class="flex-1 min-w-0">
-                                        <p class="text-sm text-gray-800 truncate">
-                                            <span class="font-medium"><?= htmlspecialchars($activite['username']) ?></span>
-                                            - <?= htmlspecialchars($activite['action']) ?>
-                                        </p>
-                                        <p class="text-xs text-gray-500">
-                                            <?= date('d/m/Y H:i', strtotime($activite['date_heure'])) ?>
-                                        </p>
-                                    </div>
-                                </div>
-                            <?php endwhile; ?>
-                        <?php else: ?>
-                            <p class="text-gray-500 text-sm text-center py-4">Aucune activité récente</p>
-                        <?php endif; ?>
-                    </div>
-                </div>
-
-                <!-- Alertes -->
-                <div class="bg-white rounded-xl shadow-lg p-4 md:p-6">
-                    <h2 class="text-lg md:text-xl font-bold text-gray-800 mb-4">
-                        <i class="fas fa-bell text-yellow-600 mr-2"></i>
-                        Alertes
-                    </h2>
-                    <div class="space-y-3">
-                        <?php if ($stats['absences_jour'] > 0): ?>
-                            <div class="flex items-start space-x-3 p-3 bg-yellow-50 border-l-4 border-yellow-500 rounded">
-                                <i class="fas fa-exclamation-triangle text-yellow-600 mt-1"></i>
-                                <div class="min-w-0">
-                                    <p class="text-sm font-medium text-gray-800">Absences aujourd'hui</p>
-                                    <p class="text-xs text-gray-600"><?= $stats['absences_jour'] ?> élève(s) absent(s)</p>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-
-                        <?php if ($stats['paiements_attente'] > 0): ?>
-                            <div class="flex items-start space-x-3 p-3 bg-red-50 border-l-4 border-red-500 rounded">
-                                <i class="fas fa-money-bill-wave text-red-600 mt-1"></i>
-                                <div class="min-w-0">
-                                    <p class="text-sm font-medium text-gray-800">Paiements en retard</p>
-                                    <p class="text-xs text-gray-600"><?= $stats['paiements_attente'] ?> paiement(s) en attente</p>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-
-                        <?php if ($stats['absences_jour'] == 0 && $stats['paiements_attente'] == 0): ?>
-                            <div class="flex items-start space-x-3 p-3 bg-green-50 border-l-4 border-green-500 rounded">
-                                <i class="fas fa-check-circle text-green-600 mt-1"></i>
-                                <div class="min-w-0">
-                                    <p class="text-sm font-medium text-gray-800">Tout est à jour !</p>
-                                    <p class="text-xs text-gray-600">Aucune alerte pour le moment</p>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
         </div>
     </main>
 
